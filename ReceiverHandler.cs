@@ -6,6 +6,7 @@ namespace oldlclr
 {
     public class ReceiverHandler
     {
+        private readonly object _lockObject = new();
         /// <summary>
         /// Unmanaged object for ReceiverHandler interface
         /// </summary>
@@ -41,26 +42,21 @@ namespace oldlclr
         /// <summary>
         /// magic number for unmanaged object
         /// </summary>
-        static int MagicCode
+        private static int MagicCode
         {
             get
             {
-                string magicWord;
-                magicWord = "oh-laser";
+                string magicWord = "oh-laser";
+                byte[] byteArray = Encoding.UTF8.GetBytes(magicWord);
 
-                byte[] byteArray;
-                byteArray = Encoding.UTF8.GetBytes(magicWord);
-
-                int result;
-                result = byteArray[0] << (8 * 3)
-                    | byteArray[1] << (8 * 2) 
-                    | byteArray[2] << (8 * 1) 
+                int result = (byteArray[0] << (8 * 3))
+                    | (byteArray[1] << (8 * 2))
+                    | (byteArray[2] << (8 * 1))
                     | byteArray[3];
 
                 return result;
             }
         }
-
 
         /// <summary>
         /// reciever handler
@@ -69,27 +65,13 @@ namespace oldlclr
         /// <returns></returns>
         internal static ReceiverHandler DecodeRecieverHandler(IntPtr objPtr)
         {
-            ReceiverHandler result;
-            result = null;
-
-            UnmanagedObjectLayout objLayout;
-
-            objLayout = Marshal.PtrToStructure<UnmanagedObjectLayout>(objPtr);
-
-            if (objLayout.Magic == MagicCode)
+            var objLayout = Marshal.PtrToStructure<UnmanagedObjectLayout>(objPtr);
+            return (objLayout.Magic == MagicCode) switch
             {
-                GCHandle hdl;
-                hdl = GCHandle.FromIntPtr(objLayout.ObjectPtr);
-
-                result = (ReceiverHandler)hdl.Target;
-
-            }
-
-
-            return result;
-
+                true => GCHandle.FromIntPtr(objLayout.ObjectPtr).Target as ReceiverHandler,
+                _ => null
+            };
         }
-
 
         /// <summary>
         /// release unmanaged object
@@ -97,24 +79,17 @@ namespace oldlclr
         /// <param name="objPtr"></param>
         internal static void ReleaseRecieverHandler(IntPtr objPtr)
         {
+            var objLayout = Marshal.PtrToStructure<UnmanagedNoMagicObjectLayout>(objPtr);
 
-            UnmanagedNoMagicObjectLayout objLayout;
-            objLayout = Marshal.PtrToStructure<UnmanagedNoMagicObjectLayout>(objPtr);
-
-            Receiver.HandlerIVtbl vtbl;
-
-            vtbl = Marshal.PtrToStructure<Receiver.HandlerIVtbl>(objLayout.Vtbl);
+            var vtbl = Marshal.PtrToStructure<Receiver.HandlerIVtbl>(objLayout.Vtbl);
 
             vtbl.Release(objPtr);
-           
-
         }
-
 
         /// <summary>
         /// Virtual function table
         /// </summary>
-        Receiver.HandlerIVtbl Vtbl;
+        private Receiver.HandlerIVtbl Vtbl;
         /// <summary>
         /// アンマネージドオブジェクトに渡す構造体
         /// </summary>
@@ -123,34 +98,35 @@ namespace oldlclr
         /// <summary>
         /// data link service
         /// </summary>
-        internal Service DataLinkService;
+        internal IService DataLinkService;
 
         /// <summary>
         /// Constructor
         /// </summary>
         internal ReceiverHandler()
         {
+            Vtbl = new()
+            {
+                Retain = Retain,
+                Release = Release,
+                LoadData = LoadData,
+                GetStatus = GetStatus
+            };
 
-            Vtbl.Retain = Retain;
-            Vtbl.Release = Release;
-            Vtbl.LoadData = LoadData;
-            Vtbl.GetStatus = GetStatus;
-
-
-            IntPtr unmanagedPtr;
-            unmanagedPtr = Marshal.AllocHGlobal(Marshal.SizeOf<UnmanagedObjectLayout>());
+            IntPtr unmanagedPtr = Marshal.AllocHGlobal(Marshal.SizeOf<UnmanagedObjectLayout>());
 
             if (unmanagedPtr != IntPtr.Zero)
             {
-                UnmanagedObjectLayout UnmanagedObject;
-                IntPtr vtblPtr;
-                vtblPtr = Marshal.AllocHGlobal(Marshal.SizeOf<Receiver.HandlerIVtbl>());
+                IntPtr vtblPtr = Marshal.AllocHGlobal(Marshal.SizeOf<Receiver.HandlerIVtbl>());
                 if (vtblPtr != IntPtr.Zero)
                 {
                     Marshal.StructureToPtr(Vtbl, vtblPtr, false);
-                    UnmanagedObject.Vtbl = vtblPtr;
-                    UnmanagedObject.ObjectPtr = GCHandle.ToIntPtr(GCHandle.Alloc(this));
-                    UnmanagedObject.Magic = MagicCode;
+                    UnmanagedObjectLayout UnmanagedObject = new()
+                    {
+                        Vtbl = vtblPtr,
+                        ObjectPtr = GCHandle.ToIntPtr(GCHandle.Alloc(this)),
+                        Magic = MagicCode
+                    };
                     Marshal.StructureToPtr(UnmanagedObject, unmanagedPtr, false);
                 }
                 else
@@ -160,10 +136,9 @@ namespace oldlclr
                 }
             }
 
-            this.UnmanagedPtr = unmanagedPtr;
-            Retain(this.UnmanagedPtr);
+            UnmanagedPtr = unmanagedPtr;
+            Retain(UnmanagedPtr);
         }
-
 
         /// <summary>
         /// increment reference
@@ -173,7 +148,7 @@ namespace oldlclr
         public uint Retain(IntPtr obj)
         {
             uint result;
-            lock(this)
+            lock (_lockObject)
             {
                 result = ++RefCount;
             }
@@ -189,35 +164,27 @@ namespace oldlclr
         public uint Release(IntPtr obj)
         {
             uint result;
-            lock (this)
+            lock (_lockObject)
             {
                 result = --RefCount;
             }
             if (result == 0)
             {
-                UnmanagedObjectLayout rawObject;
-
-                rawObject = Marshal.PtrToStructure<UnmanagedObjectLayout>(obj);
+                UnmanagedObjectLayout rawObject = Marshal.PtrToStructure<UnmanagedObjectLayout>(obj);
 
                 if (UnmanagedPtr != IntPtr.Zero)
                 {
-                    UnmanagedObjectLayout UnmanagedObject;
-
-                    UnmanagedObject = (UnmanagedObjectLayout)Marshal.PtrToStructure(UnmanagedPtr, typeof(UnmanagedObjectLayout));
-
+                    UnmanagedObjectLayout UnmanagedObject = (UnmanagedObjectLayout)Marshal.PtrToStructure(UnmanagedPtr, typeof(UnmanagedObjectLayout));
 
                     Marshal.DestroyStructure(UnmanagedObject.Vtbl, typeof(Receiver.HandlerIVtbl));
                     Marshal.FreeHGlobal(UnmanagedObject.Vtbl);
-                    GCHandle thisHandle;
-                    thisHandle = GCHandle.FromIntPtr(UnmanagedObject.ObjectPtr);
+                    GCHandle thisHandle = GCHandle.FromIntPtr(UnmanagedObject.ObjectPtr);
                     thisHandle.Free();
                     Marshal.DestroyStructure(UnmanagedPtr, typeof(UnmanagedObjectLayout));
                     UnmanagedPtr = IntPtr.Zero;
-
                 }
-                
             }
-            
+
             return result;
         }
         /// <summary>
@@ -227,111 +194,49 @@ namespace oldlclr
         internal uint Release()
         {
             return Release(UnmanagedPtr);
-
         }
-
 
         public int LoadData(IntPtr objPtr, IntPtr data, uint length, IntPtr dataNamePtr)
         {
-            int result;
-            result = 0;
+            IService dataLinkService = DataLinkService;
 
-
-            Service dataLinkService;
-            dataLinkService = DataLinkService;
-            if (dataLinkService != null)
+            return  dataLinkService switch
             {
-                Codec codec;
-                codec = new Codec();
+                not null => (int)LoadData(data, length, dataNamePtr, dataLinkService),
+                _ => (int)ErrorCode.RECEIVER_IS_NOT_ATTACHED
+            };
+        }
 
-                Str strObj;
-                strObj = new Str(data, length);
+        private static ErrorCode LoadData(IntPtr data, uint length, IntPtr dataNamePtr, IService dataLinkService)
+        {
+            using Codec codec = new();
+            using Str strObj = new(data, length);
+            codec.Decode(strObj);
 
-                codec.Decode(strObj);
+            byte[] processingData = codec.Data;
 
-                byte[] processingData;
-                processingData = codec.Data;
-
-                string dataName;
-                dataName = null;
-                if (dataNamePtr != IntPtr.Zero)
-                {
-                    int dataLength;
-                    dataLength = 0;
-                    while (true)
-                    {
-                        byte tempValue;
-                        tempValue = Marshal.ReadByte(dataNamePtr, dataLength);
-                            
-                        
-                        if (tempValue == 0)
-                        {
-                            break;
-                        }
-                        dataLength++;
-                    }
-                    byte[] buffer;
-                    buffer = new byte[dataLength];
-                    Marshal.Copy(dataNamePtr, buffer, 0, dataLength);
-                    dataName = System.Text.Encoding.UTF8.GetString(buffer);
-                }
-
-
-                if (processingData != null && processingData.Length > 0)
-                {
-                    ErrorCode state;
-                    state = dataLinkService.LoadProcessingData(codec.DataType, processingData, dataName);
-                    result = (int)state;
-                }
-                else
-                {
-                    result = (int)ErrorCode.INVALID_DATA_FORMAT;
-                }
-
-
-
-                strObj.Dispose();
-
-                codec.Dispose();
-
-            }
-            else
+            return processingData switch
             {
-                result = (int)ErrorCode.RECEIVER_IS_NOT_ATTACHED;
-            }
-
-
-
-            return result;
-
+                not null and { Length: > 0 } => dataLinkService.LoadProcessingData(codec.DataType, processingData, dataNamePtr),
+                _ => ErrorCode.INVALID_DATA_FORMAT
+            };
         }
 
         public IntPtr GetStatus(IntPtr obj)
         {
-            IntPtr result;
+            IntPtr result = IntPtr.Zero;
+            IService dataLinkService = DataLinkService;
 
-            result = IntPtr.Zero;
-
-            Service dataLinkService;
-            dataLinkService = DataLinkService;
             if (dataLinkService != null)
             {
-                DateTime? finishedLoading;
-                DateTime? startedLoading;
-                DateTime? finishedProcessing;
-                DateTime? startedProcessing;
-                string dataName;
+                DateTime? finishedLoading = dataLinkService.TimeOfFinishedLoading;
+                DateTime? startedLoading = dataLinkService.TimeOfStartedLoading;
 
-                finishedLoading = dataLinkService.TimeOfFinishedLoading;
-                startedLoading = dataLinkService.TimeOfStartedLoading;
+                DateTime? finishedProcessing = dataLinkService.TimeOfFinishedProcessing;
+                DateTime? startedProcessing = dataLinkService.TimeOfStartedProcessing;
+                string dataName = dataLinkService.DataName;
 
-                finishedProcessing = dataLinkService.TimeOfFinishedProcessing;
-                startedProcessing = dataLinkService.TimeOfStartedProcessing;
-                dataName = dataLinkService.DataName;
-
-                
-                Status status;
-                status = new Status();
+                Status status = new();
                 status.SetStartedTimeOfLoading(startedLoading);
                 status.SetFinishedTimeOfLoading(finishedLoading);
                 status.SetStartedTimeOfProcessing(startedProcessing);
@@ -345,7 +250,6 @@ namespace oldlclr
             return result;
         }
 
-        uint RefCount; 
-
+        private uint RefCount;
     }
 }

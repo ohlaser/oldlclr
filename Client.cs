@@ -1,125 +1,89 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace oldlclr
 {
     /// <summary>
-    /// HARUKA data link client 
+    /// HARUKA data link client
     /// </summary>
-    public class Client
+    public partial class Client
         : ICloneable, IDisposable
     {
+        private static partial class NativeMethods
+        {
+            /// <summary>
+            /// Intanciate client in process heap
+            /// </summary>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_client_create")]
+            public static partial IntPtr CreateI();
 
-        /// <summary>
-        /// Intanciate client in process heap
-        /// </summary>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_client_create")]
-        static extern IntPtr CreateI();
+            /// <summary>
+            /// Increment reference count
+            /// </summary>
+            /// <param name="objPtr"></param>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_client_retain")]
+            public static partial uint Retain(IntPtr objPtr);
 
-        /// <summary>
-        /// Increment reference count
-        /// </summary>
-        /// <param name="objPtr"></param>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_client_retain")]
-        static extern uint Retain(IntPtr objPtr);
+            /// <summary>
+            /// Decrement reference count
+            /// </summary>
+            /// <param name="objPtr"></param>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_client_release")]
+            public static partial uint Release(IntPtr objPtr);
 
-        /// <summary>
-        /// Decrement reference count
-        /// </summary>
-        /// <param name="objPtr"></param>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_client_release")]
-        static extern uint Release(IntPtr objPtr);
+            /// <summary>
+            /// get data link reciever status
+            /// </summary>
+            /// <param name="objPtr"></param>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_client_get_receiver_status")]
+            public static partial IntPtr GetStatus(IntPtr objPtr);
 
-        /// <summary>
-        /// get data link reciever status
-        /// </summary>
-        /// <param name="objPtr"></param>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_client_get_receiver_status")]
-        static extern IntPtr GetStatus(IntPtr objPtr);
+            /// <summary>
+            /// get data link reciever status
+            /// </summary>
+            /// <param name="objPtr"></param>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_client_load_data")]
+            public static partial int LoadData(IntPtr objPtr, [In]byte[] data, uint dataLength, [In]byte[] cStrName);
 
+            /// <summary>
+            /// connect data link reciever
+            /// </summary>
+            /// <param name="objPtr"></param>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_client_connect")]
+            public static partial int Connect(IntPtr objPtr);
 
-        /// <summary>
-        /// get data link reciever status
-        /// </summary>
-        /// <param name="objPtr"></param>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_client_load_data")]
-        static extern int LoadData(IntPtr objPtr, byte[] data, uint dataLength, byte[] cStrName);
-
-
-        /// <summary>
-        /// connect data link reciever
-        /// </summary>
-        /// <param name="objPtr"></param>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_client_connect")]
-        static extern int Connect(IntPtr objPtr);
-
-        /// <summary>
-        /// disconnect data link reciever
-        /// </summary>
-        /// <param name="objPtr"></param>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_client_disconnect")]
-        static extern int Disconnect(IntPtr objPtr);
-
+            /// <summary>
+            /// disconnect data link reciever
+            /// </summary>
+            /// <param name="objPtr"></param>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_client_disconnect")]
+            public static partial int Disconnect(IntPtr objPtr);
+        }
 
         /// <summary>
         /// generate name
         /// </summary>
         /// <returns></returns>
-        static string GenerateDataName()
-        {
-            string result;
-            result = null;
-
-            string df;
-            df = "yyyy-MM-dd-HH-mm-ss";
-
-            string dataName;
-            dataName = string.Format(df, DateTime.Now);
-
-            result = string.Format("{0}.pdf", dataName);
-
-            return result;
-
-        }
-
-        /// <summary>
-        /// Native object pointer
-        /// </summary>
-        private IntPtr ObjectPtrValue;
+        private static string GenerateDataName() => $"{DateTime.Now:yyyy-MM-dd-HH-mm-ss}.pdf";
 
         /// <summary>
         /// Native Object pointer
         /// </summary>
-        public IntPtr ObjectPtr
-        {
-            get
-            {
-                return ObjectPtrValue;
-            }
-        }
-
-
-
+        public IntPtr ObjectPtr { get; private set; }
 
         private bool disposedValue = false; // To detect redundant calls
 
         /// <summary>
-        /// constructor 
+        /// constructor
         /// </summary>
-        public Client()
-        {
-            AttachRef(CreateI());
-        }
+        public Client() => AttachRef(NativeMethods.CreateI());
         ~Client()
         {
             // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
@@ -129,7 +93,7 @@ namespace oldlclr
         {
             if (IntPtr.Zero != objPtr)
             {
-                Retain(objPtr);
+                _ = NativeMethods.Retain(objPtr);
             }
             AttachRef(objPtr);
         }
@@ -142,20 +106,17 @@ namespace oldlclr
         {
             if (IntPtr.Zero != ObjectPtr)
             {
-                Release(ObjectPtr);
+                _ = NativeMethods.Release(ObjectPtr);
             }
-            ObjectPtrValue = objPtr;
-
+            ObjectPtr = objPtr;
         }
 
         public object Clone()
         {
-            Client result;
-            result = (Client)base.MemberwiseClone();
-            Retain(result.ObjectPtr);
+            Client result = (Client)base.MemberwiseClone();
+            _ = NativeMethods.Retain(result.ObjectPtr);
 
             return result;
-
         }
         protected virtual void Dispose(bool disposing)
         {
@@ -172,7 +133,6 @@ namespace oldlclr
             }
         }
 
-
         // This code added to correctly implement the disposable pattern.
         public void Dispose()
         {
@@ -182,20 +142,14 @@ namespace oldlclr
             GC.SuppressFinalize(this);
         }
 
-
         /// <summary>
         /// get data link server status
         /// </summary>
         /// <returns></returns>
         public Status GetStatus()
         {
-            Status result;
-
-            IntPtr statusPtr;
-            statusPtr = IntPtr.Zero;
-
-            result = null;
-            statusPtr = GetStatus(ObjectPtr);
+            Status result = null;
+            IntPtr statusPtr = NativeMethods.GetStatus(ObjectPtr);
             if (statusPtr != IntPtr.Zero)
             {
                 result = new Status();
@@ -205,7 +159,6 @@ namespace oldlclr
             return result;
         }
 
-
         /// <summary>
         /// send data to data server(Laser processing application)
         /// </summary>
@@ -214,32 +167,18 @@ namespace oldlclr
         /// <returns></returns>
         public bool LoadData(byte[] data, string dataName)
         {
-            bool result;
+            dataName ??= GenerateDataName();
 
-            result = false;
-
-
-            if (dataName == null)
-            {
-                dataName = GenerateDataName();
-            }
-
-            byte[] dataNameByteArray;
-            dataNameByteArray = System.Text.Encoding.UTF8.GetBytes(dataName);
+            byte[] dataNameByteArray = System.Text.Encoding.UTF8.GetBytes(dataName);
 
             byte[] dataNameByteArray1 = new byte[dataNameByteArray.Length + 1];
             Array.Copy(dataNameByteArray, dataNameByteArray1, dataNameByteArray.Length);
             dataNameByteArray1[dataNameByteArray.Length] = 0;
 
-            int state;
-            state = LoadData(ObjectPtr, data, (uint)data.Length, dataNameByteArray1);
+            int state = NativeMethods.LoadData(ObjectPtr, data, (uint)data.Length, dataNameByteArray1);
 
-            result = state == 0;
-
-
-            return result;
+            return state == 0;
         }
-
 
         /// <summary>
         /// connect to data link reciever
@@ -247,11 +186,8 @@ namespace oldlclr
         /// <returns></returns>
         public bool Connect()
         {
-            int state;
-            state = Connect(ObjectPtr);
-            bool result;
-            result = state == 0;
-            return result;
+            int state = NativeMethods.Connect(ObjectPtr);
+            return state == 0;
         }
 
         /// <summary>
@@ -260,12 +196,8 @@ namespace oldlclr
         /// <returns></returns>
         public bool Disconnect()
         {
-            int state;
-            state = Disconnect(ObjectPtr);
-            bool result;
-            result = state == 0;
-            return result;
+            int state = NativeMethods.Disconnect(ObjectPtr);
+            return state == 0;
         }
-
     }
 }

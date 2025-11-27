@@ -6,9 +6,68 @@ namespace oldlclr
     /// <summary>
     /// External api server module
     /// </summary>
-    public class Receiver
+    public partial class Receiver
         : ICloneable, IDisposable
     {
+        private static partial class NativeMethods
+        {
+            /// <summary>
+            /// Intanciate receiver in process heap
+            /// </summary>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_receiver_create")]
+            public static partial IntPtr CreateI();
+
+            /// <summary>
+            /// Increment reference count
+            /// </summary>
+            /// <param name="objPtr"></param>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_receiver_retain")]
+            public static partial uint Retain(IntPtr objPtr);
+
+            /// <summary>
+            /// Decrement reference count
+            /// </summary>
+            /// <param name="objPtr"></param>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_receiver_release")]
+            public static partial uint Release(IntPtr objPtr);
+
+            /// <summary>
+            /// set receiver handler
+            /// </summary>
+            /// <param name="objPtr"></param>
+            /// <param name="handler"></param>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_receiver_set_handler")]
+            public static partial int SetHandler(IntPtr objPtr, IntPtr handler);
+
+            /// <summary>
+            /// get receiver handler
+            /// </summary>
+            /// <param name="objPtr"></param>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_receiver_get_handler")]
+            public static partial IntPtr GetHandler(IntPtr objPtr);
+
+            /// <summary>
+            /// start to listening message from client
+            /// </summary>
+            /// <param name="objPtr"></param>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_receiver_start")]
+            public static partial int Start(IntPtr objPtr);
+
+            /// <summary>
+            /// stop to listening message from client
+            /// </summary>
+            /// <param name="objPtr"></param>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_receiver_stop_communication")]
+            public static partial int Stop(IntPtr objPtr);
+        }
+
         /// <summary>
         /// delegate to take IntPtr as parameter and return uint
         /// </summary>
@@ -44,114 +103,31 @@ namespace oldlclr
             public IntPtrFuncIntPtr GetStatus;
         }
 
-        
-
-
-
-        /// <summary>
-        /// Intanciate receiver in process heap
-        /// </summary>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_receiver_create")]
-        static extern IntPtr CreateI();
-
-        /// <summary>
-        /// Increment reference count
-        /// </summary>
-        /// <param name="objPtr"></param>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_receiver_retain")]
-        static extern uint Retain(IntPtr objPtr);
-
-        /// <summary>
-        /// Decrement reference count
-        /// </summary>
-        /// <param name="objPtr"></param>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_receiver_release")]
-        static extern uint Release(IntPtr objPtr);
-
-       
-        /// <summary>
-        /// set receiver handler
-        /// </summary>
-        /// <param name="objPtr"></param>
-        /// <param name="handler"></param>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_receiver_set_handler")]
-        static extern int SetHandler(IntPtr objPtr, IntPtr handler);
-
-        /// <summary>
-        /// get receiver handler
-        /// </summary>
-        /// <param name="objPtr"></param>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_receiver_get_handler")]
-        static extern IntPtr GetHandler(IntPtr objPtr);
-
-
-        /// <summary>
-        /// start to listening message from client
-        /// </summary>
-        /// <param name="objPtr"></param>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_receiver_start")]
-        static extern int Start(IntPtr objPtr);
-
-
-        /// <summary>
-        /// stop to listening message from client
-        /// </summary>
-        /// <param name="objPtr"></param>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_receiver_stop_communication")]
-        static extern int Stop(IntPtr objPtr);
-
-
-
-        /// <summary>
-        /// Native object pointer
-        /// </summary>
-        private IntPtr ObjectPtrValue;
-
         /// <summary>
         /// Native Object pointer
         /// </summary>
-        public IntPtr ObjectPtr
-        {
-            get
-            {
-                return ObjectPtrValue;
-            }
-        }
+        public IntPtr ObjectPtr { get; private set; }
 
         /// <summary>
         /// data link service
         /// </summary>
-        public Service Service
+        public IService Service
         {
-            get
-            {
-                return GetService();
-            }
-            set
-            {
-                SetService(value);
-            }
+            get => GetService();
+            set => SetService(value);
         }
-
-
 
         private bool disposedValue = false; // To detect redundant calls
 
         /// <summary>
-        /// constructor 
+        /// constructor
         /// </summary>
         public Receiver()
         {
-            AttachRef(CreateI());
+            AttachRef(NativeMethods.CreateI());
         }
-         ~Receiver()
+
+        ~Receiver()
         {
             // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
             Dispose(false);
@@ -160,7 +136,7 @@ namespace oldlclr
         {
             if (IntPtr.Zero != objPtr)
             {
-                Retain(objPtr);
+                _ = NativeMethods.Retain(objPtr);
             }
             AttachRef(objPtr);
         }
@@ -173,20 +149,17 @@ namespace oldlclr
         {
             if (IntPtr.Zero != ObjectPtr)
             {
-                Release(ObjectPtr);
+                _ = NativeMethods.Release(ObjectPtr);
             }
-            ObjectPtrValue = objPtr;
-
+            ObjectPtr = objPtr;
         }
 
         public object Clone()
         {
-            Receiver result;
-            result = (Receiver)base.MemberwiseClone();
-            Retain(result.ObjectPtr);
+            Receiver result = (Receiver)base.MemberwiseClone();
+            _ = NativeMethods.Retain(result.ObjectPtr);
 
             return result;
-  
         }
         protected virtual void Dispose(bool disposing)
         {
@@ -203,7 +176,6 @@ namespace oldlclr
             }
         }
 
-
         // This code added to correctly implement the disposable pattern.
         public void Dispose()
         {
@@ -213,15 +185,13 @@ namespace oldlclr
             GC.SuppressFinalize(this);
         }
 
-
         /// <summary>
         /// start listening to message from client
         /// </summary>
-        public void Start()
+        public void Start(IService service)
         {
-
-            Start(ObjectPtr);
-
+            _ = NativeMethods.Start(ObjectPtr);
+            Service = service;
         }
 
         /// <summary>
@@ -229,48 +199,40 @@ namespace oldlclr
         /// </summary>
         public void Stop()
         {
-            Stop(ObjectPtr);
+            _ = NativeMethods.Stop(ObjectPtr);
+            Service = null;
+            Dispose();
         }
-
 
         /// <summary>
         /// get service
         /// </summary>
         /// <returns></returns>
-        public Service GetService()
+        public IService GetService()
         {
-            IntPtr objPtr;
-            objPtr = GetHandler(ObjectPtr);
+            IntPtr objPtr = NativeMethods.GetHandler(ObjectPtr);
 
-            Service result;
-            result = null;
+            IService result = null;
             if (objPtr != IntPtr.Zero)
             {
-                ReceiverHandler recieverHdlr;
-                recieverHdlr = ReceiverHandler.DecodeRecieverHandler(objPtr);
+                ReceiverHandler recieverHdlr = ReceiverHandler.DecodeRecieverHandler(objPtr);
 
-                if (recieverHdlr != null)
-                {
-                    result = recieverHdlr.DataLinkService;
-                }
+                result = recieverHdlr?.DataLinkService;
             }
             return result;
         }
-
 
         /// <summary>
         /// set service
         /// </summary>
         /// <param name="dataLinkService"></param>
-        public void SetService(Service dataLinkService)
+        public void SetService(IService dataLinkService)
         {
-            IntPtr objPtr;
-            objPtr = GetHandler(ObjectPtr);
+            IntPtr objPtr = NativeMethods.GetHandler(ObjectPtr);
 
             if (objPtr != IntPtr.Zero)
             {
-                ReceiverHandler recieverHdlr;
-                recieverHdlr = ReceiverHandler.DecodeRecieverHandler(objPtr);
+                ReceiverHandler recieverHdlr = ReceiverHandler.DecodeRecieverHandler(objPtr);
 
                 if (recieverHdlr != null)
                 {
@@ -280,19 +242,15 @@ namespace oldlclr
             }
             else
             {
-                ReceiverHandler recieverHdlr;
-                recieverHdlr = new ReceiverHandler();
+                ReceiverHandler recieverHdlr = new()
+                {
+                    DataLinkService = dataLinkService
+                };
 
-                recieverHdlr.DataLinkService = dataLinkService;
-
-                SetHandler(ObjectPtr, recieverHdlr.UnmanagedPtr);
+                _ = NativeMethods.SetHandler(ObjectPtr, recieverHdlr.UnmanagedPtr);
 
                 recieverHdlr.Release();
-
             }
         }
-
-
-
     }
 }

@@ -1,13 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace oldlclr
 {
     /// <summary>
     /// server
     /// </summary>
-    public interface Service
+    public interface IService
     {
         /// <summary>
         /// time of started loading
@@ -49,7 +47,6 @@ namespace oldlclr
             get;
         }
 
-
         /// <summary>
         /// Processing count
         /// </summary>
@@ -65,18 +62,12 @@ namespace oldlclr
         {
             get;
         }
-        
-
 
         /// <summary>
         /// load data processing data
         /// </summary>
         /// <param name="dataType"></param>
         /// <param name="data"></param>
-        ErrorCode LoadProcessingData(string dataType, byte[] data, string dataName);
-
-
-        
-
+        ErrorCode LoadProcessingData(string dataType, byte[] data, IntPtr dataName);
     }
 }

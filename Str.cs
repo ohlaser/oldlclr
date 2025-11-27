@@ -3,94 +3,74 @@ using System.Runtime.InteropServices;
 
 namespace oldlclr
 {
-    public class Str : ICloneable, IDisposable
+    public partial class Str : ICloneable, IDisposable
     {
-        /// <summary>
-        /// Intanciate reciever in process heap
-        /// </summary>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_str_create_00")]
-        static extern IntPtr CreateI(byte[] byteArray, uint length);
+        private static partial class NativeMethods
+        {
+            /// <summary>
+            /// Intanciate reciever in process heap
+            /// </summary>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_str_create_00")]
+            public static partial IntPtr CreateI([In]byte[] byteArray, uint length);
 
-        /// <summary>
-        /// Intanciate reciever in process heap
-        /// </summary>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_str_create_00")]
-        static extern IntPtr CreateI(IntPtr dataPtr, uint length);
+            /// <summary>
+            /// Intanciate reciever in process heap
+            /// </summary>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_str_create_00")]
+            public static partial IntPtr CreateI(IntPtr dataPtr, uint length);
 
+            /// <summary>
+            /// Intanciate reciever in process heap
+            /// </summary>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_str_create_01")]
+            public static partial IntPtr CreateI([In]byte[] byteArray);
 
-        /// <summary>
-        /// Intanciate reciever in process heap
-        /// </summary>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_str_create_01")]
-        static extern IntPtr CreateI(byte[] byteArray);
+            /// <summary>
+            /// Increment reference count
+            /// </summary>
+            /// <param name="objPtr"></param>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_str_retain")]
+            public static partial uint Retain(IntPtr objPtr);
 
-        /// <summary>
-        /// Increment reference count
-        /// </summary>
-        /// <param name="objPtr"></param>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_str_retain")]
-        static extern uint Retain(IntPtr objPtr);
+            /// <summary>
+            /// Decrement reference count
+            /// </summary>
+            /// <param name="objPtr"></param>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_str_release")]
+            public static partial uint Release(IntPtr objPtr);
 
-        /// <summary>
-        /// Decrement reference count
-        /// </summary>
-        /// <param name="objPtr"></param>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_str_release")]
-        static extern uint Release(IntPtr objPtr);
+            /// <summary>
+            /// Get length
+            /// </summary>
+            /// <param name="objPtr"></param>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_str_get_length")]
+            public static partial uint GetLength(IntPtr objPtr);
 
-
-        /// <summary>
-        /// Get length
-        /// </summary>
-        /// <param name="objPtr"></param>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_str_get_length")]
-        static extern uint GetLength(IntPtr objPtr);
-
-
-        /// <summary>
-        /// CopyContents
-        /// </summary>
-        /// <param name="objPtr"></param>
-        /// <returns></returns>
-        [DllImport("oldl", EntryPoint = "oldl_str_copy_contents")]
-        static extern int CopyContents(IntPtr objPtr,
-            byte[] buffer, uint size);
-
-
-        /// <summary>
-        /// Native object pointer
-        /// </summary>
-        private IntPtr ObjectPtrValue;
+            /// <summary>
+            /// CopyContents
+            /// </summary>
+            /// <param name="objPtr"></param>
+            /// <returns></returns>
+            [LibraryImport("oldl", EntryPoint = "oldl_str_copy_contents")]
+            public static partial int CopyContents(IntPtr objPtr,
+                [In, Out]byte[] buffer, uint size);
+        }
 
         /// <summary>
         /// Native Object pointer
         /// </summary>
-        public IntPtr ObjectPtr
-        {
-            get
-            {
-                return ObjectPtrValue;
-            }
-        }
+        public IntPtr ObjectPtr { get; private set; }
 
         /// <summary>
         /// Length of data
         /// </summary>
-        public int Length
-        {
-            get
-            {
-                int result;
-                result = (int)GetLength(ObjectPtr);
-                return result;
-            }
-        }
+        public int Length => (int)NativeMethods.GetLength(ObjectPtr);
 
         /// <summary>
         /// DataContents
@@ -99,25 +79,19 @@ namespace oldlclr
         {
             get
             {
-
-                byte[] result;
-                result = new byte[Length];
-                CopyContents(ObjectPtr, result, (uint)result.Length);
+                byte[] result = new byte[Length];
+                _ = NativeMethods.CopyContents(ObjectPtr, result, (uint)result.Length);
 
                 return result;
             }
         }
 
-
         private bool disposedValue = false; // To detect redundant calls
 
         /// <summary>
-        /// constructor 
+        /// constructor
         /// </summary>
-        public Str(byte[] byteArray)
-        {
-            AttachRef(CreateI(byteArray, (uint)byteArray.Length));
-        }
+        public Str(byte[] byteArray) => AttachRef(NativeMethods.CreateI(byteArray, (uint)byteArray.Length));
 
         /// <summary>
         /// construct zero terminate utf8 string
@@ -125,35 +99,24 @@ namespace oldlclr
         /// <param name="str"></param>
         public Str(string str)
         {
-            byte[] strBytes;
-            strBytes = System.Text.Encoding.UTF8.GetBytes(str);
-            byte[] strBytesZero;
-            strBytesZero = new byte[strBytes.Length + 1];
+            byte[] strBytes = System.Text.Encoding.UTF8.GetBytes(str);
+            byte[] strBytesZero = new byte[strBytes.Length + 1];
             Array.Copy(strBytes, strBytesZero, strBytes.Length);
-            strBytesZero[strBytesZero.Length - 1] = 0;
+            strBytesZero[^1] = 0;
 
-            AttachRef(CreateI(strBytesZero, (uint)strBytesZero.Length));
- 
+            AttachRef(NativeMethods.CreateI(strBytesZero, (uint)strBytesZero.Length));
         }
         /// <summary>
         /// constructor
         /// </summary>
         /// <param name="objPtr"></param>
-        internal Str(IntPtr objPtr, uint length)
-        {
-            AttachRef(CreateI(objPtr, length));
-        }
+        internal Str(IntPtr objPtr, uint length) => AttachRef(NativeMethods.CreateI(objPtr, length));
 
         /// <summary>
         /// constructor
         /// </summary>
         /// <param name="objPtr"></param>
-        internal Str(IntPtr objPtr)
-        {
-            AttachRef(objPtr);
-        }
-
-
+        internal Str(IntPtr objPtr) => AttachRef(objPtr);
 
         ~Str()
         {
@@ -164,7 +127,7 @@ namespace oldlclr
         {
             if (IntPtr.Zero != objPtr)
             {
-                Retain(objPtr);
+                _ = NativeMethods.Retain(objPtr);
             }
             AttachRef(objPtr);
         }
@@ -177,18 +140,16 @@ namespace oldlclr
         {
             if (IntPtr.Zero != ObjectPtr)
             {
-                Release(ObjectPtr);
+                _ = NativeMethods.Release(ObjectPtr);
             }
-            ObjectPtrValue = objPtr;
+            ObjectPtr = objPtr;
         }
 
         object ICloneable.Clone()
         {
+            Str result = (Str)base.MemberwiseClone();
 
-            Str result;
-            result = (Str)base.MemberwiseClone();
-
-            Retain(result.ObjectPtr);
+            _ = NativeMethods.Retain(result.ObjectPtr);
 
             return result;
         }
@@ -207,7 +168,6 @@ namespace oldlclr
             }
         }
 
-
         // This code added to correctly implement the disposable pattern.
         public void Dispose()
         {
@@ -223,28 +183,19 @@ namespace oldlclr
         /// <returns></returns>
         public string GetContentsAsString()
         {
-            byte[] strBytes;
-
-            strBytes = Contents;
-            string result;
-            result = null;
+            byte[] strBytes = Contents;
+            string result = null;
             if (strBytes.Length > 0)
             {
-                int length;
-                if (strBytes[strBytes.Length - 1] == 0)
+                int length = strBytes[^1] switch
                 {
-                    length = strBytes.Length - 1;
-                }
-                else
-                {
-                    length = strBytes.Length;
-                }
+                    0 => strBytes.Length - 1,
+                    _ => strBytes.Length,
+                };
                 result = System.Text.Encoding.UTF8.GetString(strBytes, 0, length);
             }
 
             return result;
         }
-
-
     }
 }
